@@ -6,13 +6,13 @@ authors = ["Mike Rouleau <44850854+mikerouleau@users.noreply.github.com>"]
 description = "Basic control for TMC2209 stepper motor driver on Raspberry Pi"
 license-file = "LICENSE"
 keywords = ["stepper", "motor", "driver", "rpi", "raspberry"]
-readme="README.md"
-categories=["hardware-support"]
+readme = "README.md"
+categories = ["hardware-support"]
 repository = "https://github.com/mikerouleau/TMC2209_pi"
 
 
 [dependencies]
-rppal = "0.14.1"
+rppal = "0.22"
 thiserror = "1.0"
 packed_struct = "0.10"
 anyhow = "1.0"
