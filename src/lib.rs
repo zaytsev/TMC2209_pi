@@ -27,7 +27,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 mod err;
-mod reg;
+pub mod reg;
 use crate::err::TMC2209Error;
 
 /// Motor rotation directions
@@ -98,10 +98,10 @@ impl TMC2209 {
         path: &str,
         addr: u8,
         baud_rate: u32,
-        step_pin: u8,
-        dir_pin: u8,
-        en_pin: u8,
-        diag_pin: u8,
+        step_pin: OutputPin,
+        dir_pin: OutputPin,
+        en_pin: OutputPin,
+        diag_pin: InputPin,
     ) -> Result<Self, anyhow::Error> {
         let mut uart = Uart::with_path(path, baud_rate, Parity::None, 8, 1)?;
         uart.set_write_mode(true).expect("failed to set blocking");
@@ -112,10 +112,10 @@ impl TMC2209 {
             path: path.into(),
             addr,
             baud_rate,
-            step_pin: Gpio::new()?.get(step_pin)?.into_output(),
-            dir_pin: Gpio::new()?.get(dir_pin)?.into_output(),
-            en_pin: Gpio::new()?.get(en_pin)?.into_output(),
-            diag_pin: Gpio::new()?.get(diag_pin)?.into_input(),
+            step_pin,
+            dir_pin,
+            en_pin,
+            diag_pin,
             position: 0,
             direction: Direction::CCW,
             uart,
@@ -141,7 +141,7 @@ impl TMC2209 {
         return Ok(());
     }
 
-    fn read_reg(&mut self, reg: u8) -> Result<[u8; 4]> {
+    pub fn read_reg(&mut self, reg: u8) -> Result<[u8; 4]> {
         let crc = crc8_atm(&[self.sync_byte, self.addr, reg]);
         let frame = [self.sync_byte, self.addr, reg, crc];
 
@@ -175,7 +175,7 @@ impl TMC2209 {
         }
     }
 
-    fn write_reg(&mut self, reg: u8, data: [u8; 4]) -> anyhow::Result<()> {
+    pub fn write_reg(&mut self, reg: u8, data: [u8; 4]) -> anyhow::Result<()> {
         let crc = crc8_atm(&[
             self.sync_byte,
             self.addr,
@@ -247,7 +247,7 @@ impl TMC2209 {
         return Ok(());
     }
 
-    fn get_gconf(&mut self) -> Result<reg::GCONF, anyhow::Error> {
+    pub fn get_gconf(&mut self) -> Result<reg::GCONF, anyhow::Error> {
         let packed = self.read_reg(reg::GCONF::ADDR)?;
         return Ok(reg::GCONF::unpack_from_slice(&packed)?);
     }
@@ -262,7 +262,7 @@ impl TMC2209 {
         Ok(())
     }
 
-    fn set_pdn_disable(&mut self, disable: bool) -> Result<(), anyhow::Error> {
+    pub fn set_pdn_disable(&mut self, disable: bool) -> Result<(), anyhow::Error> {
         let mut packed = self.read_reg(reg::GCONF::ADDR)?;
         let mut unpacked = reg::GCONF::unpack_from_slice(&packed)?;
         unpacked.pdn_disable = disable;
@@ -283,11 +283,15 @@ impl TMC2209 {
         Ok(())
     }
 
-    fn set_vactual(&mut self, velocity: i32) -> Result<(), anyhow::Error> {
-        let mut packed = self.read_reg(reg::VACTUAL::ADDR)?;
-        let mut unpacked = reg::VACTUAL::unpack_from_slice(&packed)?;
-        unpacked.vactual = velocity.into();
-        packed = unpacked.pack()?;
+    pub fn set_vactual(&mut self, velocity: i32) -> Result<(), anyhow::Error> {
+        // let mut packed = self.read_reg(reg::VACTUAL::ADDR)?;
+        // let mut unpacked = reg::VACTUAL::unpack_from_slice(&packed)?;
+        // unpacked.vactual = velocity.into();
+        // packed = unpacked.pack()?;
+        let packed = reg::VACTUAL {
+            vactual: velocity.into(),
+        }
+        .pack()?;
         self.write_reg(reg::VACTUAL::ADDR + reg::WRITE_OFFSET, packed)?;
         Ok(())
     }
@@ -339,12 +343,12 @@ impl TMC2209 {
         return self.direction;
     }
 
-    fn get_chopconf(&mut self) -> Result<reg::CHOPCONF, anyhow::Error> {
+    pub fn get_chopconf(&mut self) -> Result<reg::CHOPCONF, anyhow::Error> {
         let packed = self.read_reg(reg::CHOPCONF::ADDR)?;
         return Ok(reg::CHOPCONF::unpack_from_slice(&packed)?);
     }
 
-    fn step(&mut self) {
+    pub fn step(&mut self) {
         self.step_pin.set_high();
         thread::sleep(Duration::from_micros(self.step_time));
         self.step_pin.set_low();
